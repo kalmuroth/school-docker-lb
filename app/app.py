@@ -5,25 +5,18 @@ import json
 
 app = Flask(__name__)
 
-#class Item:
-#  def __init__(self, vals):
-#    #self.__dict__ = vals
- #    for key, value in vals.items():
-  #    setattr(self, key, value)
-
-def tasks() -> List[Dict]:
+def getData() -> List[Dict]:
     config = {
         'user': 'root',
         'password': 'root',
         'host': 'db',
         'port': '3306',
-        'database': 'todo'
+        'database': 'test'
     }
     connection = mysql.connector.connect(**config)
     cursor = connection.cursor()
-    cursor.execute('SELECT * FROM tasks')
-    results = [{title: completed} for (title, completed) in cursor]
-    print(results) # Afficher les résultats de la requête SQL
+    cursor.execute('SELECT * FROM data')
+    results = [{name: value} for (name, value) in cursor]
     cursor.close()
     connection.close()
 
@@ -31,24 +24,21 @@ def tasks() -> List[Dict]:
 
 @app.route('/')
 def index():
-    #return json.dumps({'tasks': tasks()}) 
-    return render_template('index.html', text=tasks())
-    #data = tasks()
-    #return render_template('index.html', text=[Item(i) for i in data])
+    return render_template('index.html', text=getData())
 
-@app.route('/delete/<title>', methods=['POST'])
-def delete(title):
+@app.route('/delete/<name>', methods=['POST'])
+def delete(name):
     config = {
         'user': 'root',
         'password': 'root',
         'host': 'db',
         'port': '3306',
-        'database': 'todo'
+        'database': 'test'
     }
     connection = mysql.connector.connect(**config)
     cursor = connection.cursor()
-    query = "DELETE FROM tasks WHERE title = %s"
-    cursor.execute(query, (title,))
+    query = "DELETE FROM name WHERE name = %s"
+    cursor.execute(query, (name,))
     connection.commit()
     cursor.close()
     connection.close()
