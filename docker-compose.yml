@@ -1,11 +1,26 @@
-version: "2"
+version: '3'
+
+networks:
+  db:
+    driver: bridge
+  mynetwork:
+    driver: bridge
+
+volumes:
+    prometheus_data: {}
+    grafana_storage: {}
+    pgadmin_root_prefs:
+      driver: local
+    pgadmin_working_dir:
+      driver: local
+    postgresql_data:
+      driver: local
+    postgresql_bin:
+      driver: local
+    grafana-data:
+      driver: local
+
 services:
-  app:
-    build: ./app
-    links:
-      - db
-    ports:
-      - "5000:5000"
   db:
     image: mysql:5.7
     ports:
@@ -14,3 +29,105 @@ services:
       MYSQL_ROOT_PASSWORD: root
     volumes:
       - ./db:/docker-entrypoint-initdb.d/:ro
+
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: pgadmin4@pgadmin.org
+      PGADMIN_DEFAULT_PASSWORD: postgres
+      PGADMIN_LISTEN_PORT: 5050
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - postgresql_bin:/usr/lib/postgresql
+      - pgadmin_root_prefs:/root/.pgadmin
+      - pgadmin_working_dir:/var/lib/pgadmin
+    ports:
+      - 5050:5050
+    networks:
+      - db
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    links:
+      - db
+    environment:
+      DB_HOST: db
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    networks:
+      - db
+      - mynetwork
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /C:/Users/user/Docker-projet-H3-hitema-2023/
+      - /C:/Users/user/Docker-projet-H3-hitema-2023/certs
+    networks:
+      - mynetwork
+    depends_on:
+      - app
+    restart: always
+    
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    user: "104"
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_storage:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    env_file:
+      - ./grafana/config.monitoring
+    restart: always
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    command: 
+      - '--path.procfs=/host/proc' 
+      - '--path.sysfs=/host/sys'
+      - --collector.filesystem.ignored-mount-points
+      - "^/(sys|proc|dev|host|etc|rootfs/var/lib/docker/containers|rootfs/var/lib/docker/overlay2|rootfs/run/docker/netns|rootfs/var/lib/docker/aufs)($$|/)"
+    ports:
+      - 9100:9100
+    restart: always
+       
+  cadvisor:
+    image: google/cadvisor
+    container_name: cadvisor
+    volumes:
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "${CADVISOR_PORT:-8080}:8080"
+    restart: always
